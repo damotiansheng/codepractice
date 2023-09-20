@@ -28,7 +28,7 @@ func NewRecord(key, value []byte) *Record {
 	res.value = value
 	res.keySize = uint32(len(key))
 	res.valueSize = uint32(len(value))
-	res.ts =  uint64(time.Now().UnixMilli())
+	res.ts = uint64(time.Now().UnixMilli())
 	res.crc = crc32.ChecksumIEEE(res.Encode()[4:])
 	return res
 }
