@@ -1,11 +1,11 @@
-package minibitcask
+package activefile
 
 import (
 	"os"
-	"strconv"
+	"minibitcask/utils"
 )
 
-type DataFile struct {
+type ActiveFile struct {
 	writeOffset	int64
 	fid	uint32
 	writeFile	*os.File
@@ -15,14 +15,14 @@ type DataFile struct {
 	dir string
 }
 
-func NewDataFile(dir string, fid uint32, maxFileSize uint32, syncEnabled bool) (*DataFile, error) {
-	targetFileName := getActiveFilePath(dir, fid)
+func NewActiveFile(dir string, fid uint32, maxFileSize uint32, syncEnabled bool) (*ActiveFile, error) {
+	targetFileName := utils.GetActiveFilePath(dir, fid)
 	f, err := os.OpenFile(targetFileName, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
 	}
 
-	res := &DataFile{
+	res := &ActiveFile{
 		dir:	dir,
 		writeOffset: 0,
 		fid:         fid,
@@ -34,65 +34,43 @@ func NewDataFile(dir string, fid uint32, maxFileSize uint32, syncEnabled bool) (
 	return res, nil
 }
 
-func (df *DataFile) Write(data []byte) (uint32, int64, error) {
+func (df *ActiveFile) Write(data []byte) (uint32, int64, error) {
+	// Check if the write offset + the length of the data is greater than the max file size
 	if df.writeOffset + int64(len(data)) > int64(df.maxFileSize) {
+		// Increment the file id
 		df.fid++
+		// Reset the write offset to 0
 		df.writeOffset = 0
-		f, err:= os.OpenFile(getActiveFilePath(df.dir, df.fid), os.O_RDWR|os.O_CREATE, 0666)
-		if err != nil {
+		// Open the file for writing
+		f, err:= os.OpenFile(utils.GetActiveFilePath(df.dir, df.fid), os.O_RDWR|os.O_CREATE, 0666)
+		if err!= nil {
 			return 0, 0, err
 		}
+		// Set the write file to the new file
 		df.writeFile = f
 	}
 
+	// Write the data to the file
 	_, err := df.writeFile.WriteAt(data, df.writeOffset)
-	if err != nil {
+	if err!= nil {
 		return 0, 0, err
 	}
 
+	// Check if the sync flag is enabled
 	if df.syncEnabled {
+		// Sync the file
 		err = df.writeFile.Sync()
-		if err != nil {
+		if err!= nil {
 			return 0, 0, err
 		}
 	}
 
+	// Update the write offset
 	res := df.writeOffset
 	df.writeOffset += int64(len(data))
 	return df.fid, res, nil
 }
 
-func (df *DataFile) read(fid uint32, offset int64, valueSize uint32) ([]byte, error) {
-	var err error
-	df.readFile, err = os.OpenFile(getActiveFilePath(df.dir, fid), os.O_RDONLY, 0666)
-	if err != nil {
-		return nil, err
-	}
-
-	res := make([]byte, valueSize)
-	_, err = df.readFile.ReadAt(res, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	return res, nil
+func (df *ActiveFile) Close() error {
+	return df.writeFile.Close()
 }
-
-func (df *DataFile) Close() error {
-	if df.writeFile != nil {
-		err := df.writeFile.Close()
-		if err != nil {
-			return err
-		}
-	}
-
-	if df.readFile != nil {
-		err := df.readFile.Close()
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
