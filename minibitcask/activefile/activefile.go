@@ -1,21 +1,20 @@
 package activefile
 
 import (
-	"os"
 	"minibitcask/utils"
+	"os"
 )
 
 type ActiveFile struct {
 	writeOffset	int64
 	fid	uint32
 	writeFile	*os.File
-	readFile *os.File
 	syncEnabled bool
 	maxFileSize uint32
 	dir string
 }
 
-func NewActiveFile(dir string, fid uint32, maxFileSize uint32, syncEnabled bool) (*ActiveFile, error) {
+func NewActiveFile(dir string, fid uint32, writeOffset int64, maxFileSize uint32, syncEnabled bool) (*ActiveFile, error) {
 	targetFileName := utils.GetActiveFilePath(dir, fid)
 	f, err := os.OpenFile(targetFileName, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
@@ -24,7 +23,7 @@ func NewActiveFile(dir string, fid uint32, maxFileSize uint32, syncEnabled bool)
 
 	res := &ActiveFile{
 		dir:	dir,
-		writeOffset: 0,
+		writeOffset: writeOffset,
 		fid:         fid,
 		writeFile:   f,
 		syncEnabled: syncEnabled,

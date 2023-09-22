@@ -18,19 +18,62 @@ func Open(opt *Options, ops ...Option) (*DB, error) {
 		op(opt)
 	}
 
+	/*
 	maxFid := 0
 	activeFile, err := activefile.NewActiveFile(opt.dir, uint32(maxFid), opt.maxActiveFileSize, opt.syncEnable)
 	if err != nil {
 		return nil, err
-	}
+	}*/
 
-	res := &DB{
+	db := &DB{
 		data: make(map[string]*Hint),
 		opt: opt,
-		activeFile: activeFile,
 		rwLock:  &sync.RWMutex{},}
 
-	return res, nil
+	if err := db.buildIndex(); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
+
+func (db *DB) buildIndex() error {
+    // get all data file id list in db.opt.dir
+    fids, err := utils.GetDataFiles(db.opt.dir, utils.DATA_FILE_EXT)
+    if err != nil {
+        return err
+    }
+
+	if len(fids) <= 0 {
+		return nil
+	}
+
+	maxFid := fids[len(fids) - 1]
+    for _, fid := range fids {
+        // get data file path
+        dataFilePath := utils.GetActiveFilePath(db.opt.dir, fid)
+
+        // open data file
+		fileLen, err := db.parseDataFile(dataFilePath);
+		if err != nil {
+			return err
+		}
+
+		if fid == maxFid {
+			db.activeFile, err = activefile.NewActiveFile(db.opt.dir, fid, fileLen, db.opt.maxActiveFileSize, db.opt.syncEnable)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return err
+}
+
+func (db *DB) parseDataFile(dataFilePath string) (len int64, err error) {
+	var offset int64
+
+    return offset, nil
 }
 
 func (db *DB) Close() error {
@@ -84,7 +127,7 @@ func (db *DB) Delete(key []byte) error {
 		return ErrKeyNotFound
 	}
 
-	r := NewRecord(key, nil, TYPE_RECORD_DELETE)
+	r := NewRecord(key, []byte(""), TYPE_RECORD_DELETE)
 	_, _, err := db.activeFile.Write(r.Encode())
 	if err != nil {
 		return err
@@ -93,4 +136,3 @@ func (db *DB) Delete(key []byte) error {
 	delete (db.data, string(key))
 	return nil
 }
-

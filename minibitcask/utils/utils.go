@@ -1,8 +1,11 @@
 package utils
 
 import (
+	"io/ioutil"
 	"os"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -55,4 +58,31 @@ func GetDirMaxFid(dir string) (uint32, error) {
     }
 
     return maxFid, nil
+}
+
+func GetDataFiles(dir string, suffix string) ([]uint32, error) {
+	files, err := ioutil.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var fileIds []uint32
+	for _, file := range files {
+		if !strings.HasSuffix(file.Name(), suffix) {
+			continue
+		}
+		filename := file.Name()[:len(file.Name())-len(suffix)]
+		fileId, err := strconv.Atoi(filename)
+		if err != nil {
+			return nil, err
+		}
+
+		fileIds = append(fileIds, uint32(fileId))
+	}
+
+	sort.Slice(fileIds, func(i, j int) bool {
+		return fileIds[i] < fileIds[j]
+	})
+
+	return fileIds, nil
 }
