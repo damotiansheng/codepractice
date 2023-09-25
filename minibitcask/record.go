@@ -7,26 +7,27 @@ import (
 )
 
 const (
-	TYPE_RECORD_PUT uint16 = 0
+	TYPE_RECORD_PUT    uint16 = 0
 	TYPE_RECORD_DELETE uint16 = 1
+	RECORD_HEAD_SIZE   uint16 = 22
 )
 
 type Record struct {
-	crc   uint32
-	ts    uint64
-	flag  uint16
-	keySize uint32
+	crc       uint32
+	ts        uint64
+	flag      uint16
+	keySize   uint32
 	valueSize uint32
-	key   []byte
-	value []byte
+	key       []byte
+	value     []byte
 }
 
 type Hint struct {
-	crc uint32
-	fid	uint32
+	crc       uint32
+	fid       uint32
 	valueSize uint32
 	valuePos  uint32
-	ts	uint64
+	ts        uint64
 }
 
 func NewRecord(key, value []byte, recordType uint16) *Record {
@@ -64,10 +65,7 @@ func Decode(data []byte) *Record {
 	res.flag = binary.LittleEndian.Uint16(data[12:14])
 	res.keySize = binary.LittleEndian.Uint32(data[14:18])
 	res.valueSize = binary.LittleEndian.Uint32(data[18:22])
-	res.key = data[22:22+res.keySize]
+	res.key = data[22 : 22+res.keySize]
 	res.value = data[22+res.keySize:]
 	return res
 }
-
-
-

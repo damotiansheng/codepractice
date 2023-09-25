@@ -39,4 +39,6 @@ func main() {
 			panic("value not equal")
 		}
 	}
+
+	fmt.Println("finish get ", n, " items")
 }

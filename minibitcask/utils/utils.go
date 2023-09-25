@@ -61,10 +61,15 @@ func GetDirMaxFid(dir string) (uint32, error) {
 }
 
 func GetDataFiles(dir string, suffix string) ([]uint32, error) {
+	files, _ := ioutil.ReadDir(dir)
+	if len(files) == 0 {
+		return []uint32{}, nil
+	}
+	/*
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		return nil, err
-	}
+	}*/
 
 	var fileIds []uint32
 	for _, file := range files {

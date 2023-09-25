@@ -16,6 +16,7 @@ type ActiveFile struct {
 
 func NewActiveFile(dir string, fid uint32, writeOffset int64, maxFileSize uint32, syncEnabled bool) (*ActiveFile, error) {
 	targetFileName := utils.GetActiveFilePath(dir, fid)
+
 	f, err := os.OpenFile(targetFileName, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
 		return nil, err
