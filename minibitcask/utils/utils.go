@@ -10,10 +10,15 @@ import (
 
 const (
 	DATA_FILE_EXT = ".dat"
+	HINT_FILE_EXT = ".hint"
 )
 
 func GetActiveFilePath(dir string, fid uint32) string {
 	return dir + "/" + strconv.Itoa(int(fid)) + DATA_FILE_EXT
+}
+
+func GetHintFilePath(dir string, fid uint32) string {
+    return dir + "/" + strconv.Itoa(int(fid)) + HINT_FILE_EXT
 }
 
 func Read(path string, offset int64, valueSize uint32) ([]byte, error) {
@@ -65,11 +70,6 @@ func GetDataFiles(dir string, suffix string) ([]uint32, error) {
 	if len(files) == 0 {
 		return []uint32{}, nil
 	}
-	/*
-	files, err := ioutil.ReadDir(dir)
-	if err != nil {
-		return nil, err
-	}*/
 
 	var fileIds []uint32
 	for _, file := range files {

@@ -3,6 +3,7 @@ package minibitcask
 import (
 	"encoding/binary"
 	"hash/crc32"
+	"os"
 	"time"
 )
 
@@ -46,6 +47,10 @@ func (r *Record) Size() uint32 {
 	return 22 + r.keySize + r.valueSize
 }
 
+func (r *Record) GetFlag() uint16 {
+	return r.flag
+}
+
 func (r *Record) Encode() []byte {
 	res := make([]byte, r.Size())
 	binary.LittleEndian.PutUint32(res[0:4], r.crc)
@@ -68,4 +73,28 @@ func Decode(data []byte) *Record {
 	res.key = data[22 : 22+res.keySize]
 	res.value = data[22+res.keySize:]
 	return res
+}
+
+func ReadRecord(readFile *os.File, offset int64) (*Record, error) {
+	res := make([]byte, RECORD_HEAD_SIZE)
+	_, err := readFile.ReadAt(res, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	var keySize uint32
+	var valueSize uint32
+	keySize = binary.LittleEndian.Uint32(res[14:18])
+	valueSize = binary.LittleEndian.Uint32(res[18:22])
+
+	// Calculate the record length
+	recordLen := uint32(RECORD_HEAD_SIZE) + keySize + valueSize
+	recordBytes := make([]byte, recordLen)
+	// Read the record
+	_, err = readFile.ReadAt(recordBytes, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return Decode(recordBytes), err
 }

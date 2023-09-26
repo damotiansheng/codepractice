@@ -9,6 +9,8 @@ type ActiveFile struct {
 	writeOffset	int64
 	fid	uint32
 	writeFile	*os.File
+	//hintFile    *os.File
+	//hintWriteOffset int64
 	syncEnabled bool
 	maxFileSize uint32
 	dir string
@@ -22,6 +24,12 @@ func NewActiveFile(dir string, fid uint32, writeOffset int64, maxFileSize uint32
 		return nil, err
 	}
 
+    /*
+	hintfile, err := os.OpenFile(utils.GetHintFilePath(dir, fid), os.O_RDWR|os.O_CREATE, 0666)
+	if err != nil {
+		return nil, err
+	}*/
+
 	res := &ActiveFile{
 		dir:	dir,
 		writeOffset: writeOffset,
@@ -34,20 +42,30 @@ func NewActiveFile(dir string, fid uint32, writeOffset int64, maxFileSize uint32
 	return res, nil
 }
 
+func (df *ActiveFile) RotateFile() error {
+	// close current activefile
+	df.writeFile.Close()
+
+	// Increment the file id
+	df.fid++
+	// Reset the write offset to 0
+	df.writeOffset = 0
+	// Open the file for writing
+	f, err:= os.OpenFile(utils.GetActiveFilePath(df.dir, df.fid), os.O_RDWR|os.O_CREATE, 0666)
+	if err!= nil {
+		return err
+	}
+	// Set the write file to the new file
+	df.writeFile = f
+	return nil
+}
+
 func (df *ActiveFile) Write(data []byte) (uint32, int64, error) {
 	// Check if the write offset + the length of the data is greater than the max file size
 	if df.writeOffset + int64(len(data)) > int64(df.maxFileSize) {
-		// Increment the file id
-		df.fid++
-		// Reset the write offset to 0
-		df.writeOffset = 0
-		// Open the file for writing
-		f, err:= os.OpenFile(utils.GetActiveFilePath(df.dir, df.fid), os.O_RDWR|os.O_CREATE, 0666)
-		if err!= nil {
+		if err := df.RotateFile(); err!= nil {
 			return 0, 0, err
 		}
-		// Set the write file to the new file
-		df.writeFile = f
 	}
 
 	// Write the data to the file

@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 	"github.com/stretchr/testify/require"
+	"time"
 )
 
 func TestDB_Close(t *testing.T) {
@@ -40,7 +41,7 @@ func TestDB_Close(t *testing.T) {
 // TestDB_Delete tests the Delete function of the DB.
 func TestDB_Delete(t *testing.T) {
 	// Open a DB with the given options and a directory for the test.
-	db, err := Open(&Options{}, WithDir("./test-delete"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
+	db, err := Open(DefaultOptions, WithDir("./test-delete"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
 	require.NoError(t, err)
 	// Set the number of keys to be stored.
 	n := 1000
@@ -87,7 +88,7 @@ func TestDB_Delete(t *testing.T) {
 // TestDB_Get tests the Get function of the DB
 func TestDB_Get(t *testing.T) {
 	// Open a DB with the given options
-	db, err := Open(&Options{}, WithDir("./"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
+	db, err := Open(DefaultOptions, WithDir("./"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
 	require.NoError(t, err)
 
 	// Create a test key and value
@@ -114,6 +115,66 @@ func TestDB_Get(t *testing.T) {
 	// Close the DB
 	err = db.Close()
 	require.NoError(t, err)
+}
+
+func TestDB_Merge(t *testing.T) {
+	// Open a DB with the given options
+	db, err := Open(DefaultOptions, WithDir("./test-merge"), WithSyncEnable(false), WithMaxActiveFileSize( 1024 * 1), WithMergeInteval(time.Second * 6000))
+	require.NoError(t, err)
+
+	// Create a test key and value
+	n := 10000
+	for i := 0; i < n; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		value := []byte(fmt.Sprintf("testvalue%d", i))
+		// Put the key and value into the DB
+		err = db.Put(key, value)
+		require.NoError(t, err)
+	}
+
+	// Retrieve the values from the DB
+	for i := 0; i < n; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		value := []byte(fmt.Sprintf("testvalue%d", i))
+		// Retrieve the value from the DB
+		dbValue, err := db.Get(key)
+		require.NoError(t, err)
+		// Compare the retrieved value to the expected value
+		require.Equal(t, value, dbValue)
+	}
+
+	for i := 0; i < n - 100; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		// Retrieve the value from the DB
+		err := db.Delete(key)
+		require.NoError(t, err)
+	}
+
+	db.Merge()
+	// Close the DB
+
+	err = db.Close()
+	require.NoError(t, err)
+
+	db, err = Open(DefaultOptions, WithDir("./test-merge"), WithSyncEnable(false), WithMaxActiveFileSize( 1024 * 1), WithMergeInteval(time.Second * 6000))
+	require.NoError(t, err)
+
+	for i := 0; i < n - 100; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		// Retrieve the value from the DB
+		_, err := db.Get(key)
+		require.Equal(t, err, ErrKeyNotFound)
+	}
+
+	for i := n - 100; i < n; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		value := []byte(fmt.Sprintf("testvalue%d", i))
+		// Retrieve the value from the DB
+		dbValue, err := db.Get(key)
+		require.NoError(t, err)
+		// Compare the retrieved value to the expected value
+		require.Equal(t, value, dbValue)
+	}
 }
 
 func TestDB_Put(t *testing.T) {
@@ -153,7 +214,7 @@ func TestDB_Put(t *testing.T) {
 // TestOpen is a function to test the Open function
 func TestOpen(t *testing.T) {
 	// Create a new database with the given options
-	db, err := Open(&Options{}, WithDir("./test-open"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1))
+	db, err := Open(DefaultOptions, WithDir("./test-open"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1))
 	// Check if there is an error when opening the database
 	require.NoError(t, err)
 

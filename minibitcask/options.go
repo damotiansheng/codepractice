@@ -1,10 +1,21 @@
 package minibitcask
 
+import "time"
+
 type Options struct {
 	dir	string
 	syncEnable bool
 	maxActiveFileSize uint32
+	mergeInteval time.Duration
 }
+
+var (
+	DefaultOptions = &Options{
+		dir:				"/tmp/",
+		syncEnable:			false,
+		maxActiveFileSize:	1024*1024,
+		mergeInteval:		time.Hour,}
+)
 
 type Option func(*Options)
 
@@ -20,24 +31,32 @@ func WithSyncEnable(syncEnable bool) Option {
 	}
 }
 
+func WithMergeInteval(mergeInteval time.Duration) Option {
+	return func(options *Options) {
+		options.mergeInteval = mergeInteval
+	}
+}
+
 func WithMaxActiveFileSize(maxActiveFileSize uint32) Option {
 	return func(options *Options) {
 		options.maxActiveFileSize = maxActiveFileSize
 	}
 }
 
-// NewOptions returns a new Options
-func NewOptions(opts ...Option) Options {
-	options := Options{
-		dir:	"",
-		syncEnable: false,
-	}
+func (opt *Options) GetMergeInteval() time.Duration {
+	return opt.mergeInteval
+}
 
-	for _, o := range opts {
-		o(&options)
-	}
+func (opt *Options) GetDir() string {
+    return opt.dir
+}
 
-	return options
+func (opt *Options) GetSyncEnable() bool {
+    return opt.syncEnable
+}
+
+func (opt *Options) GetMaxActiveFileSize() uint32 {
+    return opt.maxActiveFileSize
 }
 
 
