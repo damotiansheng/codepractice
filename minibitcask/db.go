@@ -1,7 +1,6 @@
 package minibitcask
 
 import (
-	"encoding/binary"
 	"io"
 	"minibitcask/activefile"
 	"minibitcask/utils"
@@ -15,6 +14,7 @@ type DB struct {
 	data       map[string]*Hint
 	opt        *Options
 	activeFile *activefile.ActiveFile
+	merge      *Merge
 	rwLock     *sync.RWMutex
 }
 
@@ -28,6 +28,8 @@ func Open(opt *Options, ops ...Option) (*DB, error) {
 		opt:    opt,
 		rwLock: &sync.RWMutex{},}
 
+	db.merge = NewMerge(db)
+
 	// create dir
 	if ok := filesystem.PathIsExist(db.opt.dir); !ok {
 		if err := os.MkdirAll(db.opt.dir, os.ModePerm); err != nil {
@@ -39,7 +41,12 @@ func Open(opt *Options, ops ...Option) (*DB, error) {
 		return nil, err
 	}
 
+	db.merge.Start()
 	return db, nil
+}
+
+func (db *DB) GetOpt() *Options {
+	return db.opt
 }
 
 func (db *DB) buildIndex() error {
@@ -89,34 +96,17 @@ func (db *DB) parseDataFile(fid uint32) (fileLen int64, err error) {
 	// Read and parse each record in the file
 	for {
 		// Read the record head to get the key and value size
-		res := make([]byte, RECORD_HEAD_SIZE)
-		_, err = readFile.ReadAt(res, offset)
+		record, err := ReadRecord(readFile, offset)
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return offset, err
-		}
-		// Extract the key size and value size from the record head
-		var keySize uint32
-		var valueSize uint32
-		keySize = binary.LittleEndian.Uint32(res[14:18])
-		valueSize = binary.LittleEndian.Uint32(res[18:22])
-
-		// Calculate the record length
-		recordLen := uint32(RECORD_HEAD_SIZE) + keySize + valueSize
-		recordBytes := make([]byte, recordLen)
-		// Read the record
-		_, err := readFile.ReadAt(recordBytes, offset)
-		if err != nil {
 			return 0, err
 		}
 
-		// Decode the record
-		record := Decode(recordBytes)
-
+		recordLen := record.Size()
 		// ignore deleted records
-		if record.flag == TYPE_RECORD_DELETE {
+		if record.GetFlag() == TYPE_RECORD_DELETE {
 			offset += int64(recordLen)
 			continue
 		}
@@ -138,7 +128,20 @@ func (db *DB) parseDataFile(fid uint32) (fileLen int64, err error) {
 }
 
 func (db *DB) Close() error {
-	return db.activeFile.Close()
+	db.merge.Close()
+	if err := db.activeFile.Close(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (db *DB) GetSize() int {
+	return len(db.data)
+}
+
+func (db *DB) Merge() {
+	db.merge.beginMerge()
 }
 
 func (db *DB) Get(key []byte) ([]byte, error) {
@@ -173,6 +176,12 @@ func (db *DB) Get(key []byte) ([]byte, error) {
 	return r.value, nil
 }
 
+func (db *DB) Rotate() error {
+	db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+	return db.activeFile.RotateFile();
+}
+
 func (db *DB) Put(key, value []byte) error {
 	// Acquire read/write lock
 	db.rwLock.Lock()
@@ -187,8 +196,39 @@ func (db *DB) Put(key, value []byte) error {
 		return err
 	}
 
-	// Update hint
+	// Update index
 	db.data[string(key)] = &Hint{fid: fid, valuePos: uint32(valuePos), valueSize: uint32(len(rbytes)), ts: r.ts, crc: r.crc}
+	return nil
+}
+
+func (db *DB) MergeRecord(r *Record) error {
+    // Acquire read/write lock
+    db.rwLock.Lock()
+	defer db.rwLock.Unlock()
+
+    // Check if key exists, only record in index is valid
+    if _, ok := db.data[string(r.key)]; !ok {
+        return nil
+    }
+
+	if db.data[string(r.key)].crc != r.crc {
+		return nil
+	}
+
+	record := NewRecord(r.key, r.value, TYPE_RECORD_PUT)
+	rbytes := record.Encode()
+	// Write record to active file
+	fid, valuePos, err := db.activeFile.Write(rbytes)
+	if err != nil {
+		return err
+	}
+
+	// update index
+	hint := &Hint{fid: fid, valuePos: uint32(valuePos), valueSize: uint32(len(rbytes)), ts: record.ts, crc: record.crc}
+	db.data[string(r.key)] = hint
+
+	// write hint file
+
 	return nil
 }
 

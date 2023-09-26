@@ -10,13 +10,14 @@ import (
 )
 
 func main() {
-	db, err := minibitcask.Open(&minibitcask.Options{}, minibitcask.WithDir("./"), minibitcask.WithSyncEnable(false), minibitcask.WithMaxActiveFileSize(1024 * 1024 * 1))
+	db, err := minibitcask.Open(minibitcask.DefaultOptions, minibitcask.WithDir("./"), minibitcask.WithSyncEnable(false), minibitcask.WithMaxActiveFileSize(1024 * 1024 * 1))
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
 
-	n := 100000
+	n := 10000
+	// put添加数据
 	for i  := 0; i < n; i++ {
 		key := []byte(fmt.Sprintf("test%d", i))
 		value := []byte(fmt.Sprintf("testvalue%d", i))
@@ -28,6 +29,7 @@ func main() {
 
 	fmt.Println("finish put ", n, " items")
 
+	// Get获取数据
 	for i  := 0; i < n; i++ {
 		key := []byte(fmt.Sprintf("test%d", i))
 		value := []byte(fmt.Sprintf("testvalue%d", i))
@@ -41,4 +43,13 @@ func main() {
 	}
 
 	fmt.Println("finish get ", n, " items")
+
+	// Delete删除数据
+	for i  := 0; i < n; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		err := db.Delete(key)
+		if  err != nil {
+			panic(err)
+		}
+	}
 }
