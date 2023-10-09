@@ -7,10 +7,16 @@ package main
 import (
 	"fmt"
 	"minibitcask"
+	"os"
 )
 
 func main() {
-	db, err := minibitcask.Open(minibitcask.DefaultOptions, minibitcask.WithDir("./"), minibitcask.WithSyncEnable(false), minibitcask.WithMaxActiveFileSize(1024 * 1024 * 1))
+	dir := "./tmp"
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	db, err := minibitcask.Open(minibitcask.DefaultOptions, minibitcask.WithDir(dir), minibitcask.WithSyncEnable(false), minibitcask.WithMaxActiveFileSize(1024 * 1024 * 1))
 	if err != nil {
 		panic(err)
 	}
@@ -53,8 +59,12 @@ func main() {
 		}
 	}
 
-	// merge data
-	if err := db.Merge(); err != nil {
+	fmt.Println("finish delete ", n, " items")
+
+	// merge数据
+	if err = db.Merge(); err != nil {
 		panic(err)
 	}
+
+	fmt.Println("finish merge ")
 }
