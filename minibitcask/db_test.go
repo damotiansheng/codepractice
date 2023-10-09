@@ -2,49 +2,23 @@ package minibitcask
 
 import (
 	"fmt"
-	"minibitcask/activefile"
-	"sync"
+	"os"
 	"testing"
 	"github.com/stretchr/testify/require"
 	"time"
 )
 
-func TestDB_Close(t *testing.T) {
-	type fields struct {
-		data       map[string]*Hint
-		opt        *Options
-		activeFile *activefile.ActiveFile
-		rwLock     *sync.RWMutex
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			db := &DB{
-				data:       tt.fields.data,
-				opt:        tt.fields.opt,
-				activeFile: tt.fields.activeFile,
-				rwLock:     tt.fields.rwLock,
-			}
-			if err := db.Close(); (err != nil) != tt.wantErr {
-				t.Errorf("Close() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 // TestDB_Delete tests the Delete function of the DB.
 func TestDB_Delete(t *testing.T) {
+	dir := "./test-delete"
+	defer func() {
+		os.RemoveAll(dir)
+	}()
 	// Open a DB with the given options and a directory for the test.
-	db, err := Open(DefaultOptions, WithDir("./test-delete"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
+	db, err := Open(DefaultOptions, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1))
 	require.NoError(t, err)
 	// Set the number of keys to be stored.
-	n := 1000
+	n := 10000
 	// Store the keys and values in the DB.
 	for i  := 0; i < n; i++ {
 		key := []byte(fmt.Sprintf("test%d", i))
@@ -61,7 +35,7 @@ func TestDB_Delete(t *testing.T) {
 	}
 
 	// Check that the deleted keys are no longer present.
-	for i  := 0; i < n / 2; i++ {
+	for i := 0; i < n / 2; i++ {
 		key := []byte(fmt.Sprintf("test%d", i))
 		_, err := db.Get(key)
 		require.Equal(t, ErrKeyNotFound, err)
@@ -72,11 +46,11 @@ func TestDB_Delete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Re-open the DB.
-	db, err = Open(&Options{}, WithDir("./test-delete"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
+	db, err = Open(DefaultOptions, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1))
 	require.NoError(t, err)
 
 	// Check that the deleted keys are no longer present.
-	for i  := 0; i < n / 2; i++ {
+	for i := 0; i < n / 2; i++ {
 		key := []byte(fmt.Sprintf("test%d", i))
 		_, err := db.Get(key)
 		require.Equal(t, ErrKeyNotFound, err)
@@ -90,12 +64,21 @@ func TestDB_Delete(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, value, dbValue)
 	}
+
+	// Close the DB.
+	err = db.Close()
+	require.NoError(t, err)
 }
 
 // TestDB_Get tests the Get function of the DB
 func TestDB_Get(t *testing.T) {
+	dir := "./test-get"
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
 	// Open a DB with the given options
-	db, err := Open(DefaultOptions, WithDir("./"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
+	db, err := Open(DefaultOptions, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
 	require.NoError(t, err)
 
 	// Create a test key and value
@@ -122,11 +105,35 @@ func TestDB_Get(t *testing.T) {
 	// Close the DB
 	err = db.Close()
 	require.NoError(t, err)
+
+	// reopen db
+	db, err = Open(DefaultOptions, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
+	require.NoError(t, err)
+
+	// Retrieve the values from the DB
+	for i  := 0; i < n; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		value := []byte(fmt.Sprintf("testvalue%d", i))
+		// Retrieve the value from the DB
+		dbValue, err := db.Get(key)
+		require.NoError(t, err)
+		// Compare the retrieved value to the expected value
+		require.Equal(t, value, dbValue)
+	}
+
+	// Close the DB
+	err = db.Close()
+	require.NoError(t, err)
 }
 
 func TestDB_Merge(t *testing.T) {
+	dir := "./test-merge"
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
 	// Open a DB with the given options
-	db, err := Open(DefaultOptions, WithDir("./test-merge"), WithSyncEnable(false), WithMaxActiveFileSize( 1024 * 1), WithMergeInteval(time.Second * 6000))
+	db, err := Open(DefaultOptions, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize( 1024 * 1), WithMergeInteval(time.Second * 6000))
 	require.NoError(t, err)
 
 	// Create a test key and value
@@ -157,13 +164,20 @@ func TestDB_Merge(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	db.Merge()
-	// Close the DB
+	for i := 0; i < n - 100; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		// Retrieve the value from the DB
+		_, err := db.Get(key)
+		require.Equal(t, err, ErrKeyNotFound)
+	}
 
+	require.NoError(t, db.Merge())
+
+	// Close the DB
 	err = db.Close()
 	require.NoError(t, err)
 
-	db, err = Open(DefaultOptions, WithDir("./test-merge"), WithSyncEnable(false), WithMaxActiveFileSize( 1024 * 1), WithMergeInteval(time.Second * 6000))
+	db, err = Open(DefaultOptions, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize( 1024 * 1), WithMergeInteval(time.Second * 6000))
 	require.NoError(t, err)
 
 	for i := 0; i < n - 100; i++ {
@@ -182,46 +196,20 @@ func TestDB_Merge(t *testing.T) {
 		// Compare the retrieved value to the expected value
 		require.Equal(t, value, dbValue)
 	}
-}
 
-func TestDB_Put(t *testing.T) {
-	type fields struct {
-		data       map[string]*Hint
-		opt        *Options
-		activeFile *activefile.ActiveFile
-		rwLock     *sync.RWMutex
-	}
-	type args struct {
-		key   []byte
-		value []byte
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			db := &DB{
-				data:       tt.fields.data,
-				opt:        tt.fields.opt,
-				activeFile: tt.fields.activeFile,
-				rwLock:     tt.fields.rwLock,
-			}
-			if err := db.Put(tt.args.key, tt.args.value); (err != nil) != tt.wantErr {
-				t.Errorf("Put() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
+	// Close the DB
+	err = db.Close()
+	require.NoError(t, err)
 }
 
 // TestOpen is a function to test the Open function
 func TestOpen(t *testing.T) {
+	dir := "./test-open"
+	defer func() {
+		os.RemoveAll(dir)
+	}()
 	// Create a new database with the given options
-	db, err := Open(DefaultOptions, WithDir("./test-open"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1))
+	db, err := Open(DefaultOptions, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1))
 	// Check if there is an error when opening the database
 	require.NoError(t, err)
 
@@ -243,7 +231,7 @@ func TestOpen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Open the database again with different options
-	db, err = Open(&Options{}, WithDir("./test-open"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
+	db, err = Open(&Options{}, WithDir(dir), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
 	// Check if there is an error when opening the database
 	require.NoError(t, err)
 	// Loop through the number of entries

@@ -31,6 +31,12 @@ type Hint struct {
 	ts        uint64
 }
 
+type HintRecord struct {
+	keySize   uint32
+	hint      *Hint
+	key       []byte
+}
+
 func NewRecord(key, value []byte, recordType uint16) *Record {
 	res := &Record{}
 	res.key = key
@@ -39,7 +45,7 @@ func NewRecord(key, value []byte, recordType uint16) *Record {
 	res.valueSize = uint32(len(value))
 	res.ts = uint64(time.Now().UnixMilli())
 	res.flag = recordType
-	res.crc = crc32.ChecksumIEEE(res.Encode()[4:])
+	res.crc = crc32.ChecksumIEEE(res.EncodeRecord()[4:])
 	return res
 }
 
@@ -51,7 +57,7 @@ func (r *Record) GetFlag() uint16 {
 	return r.flag
 }
 
-func (r *Record) Encode() []byte {
+func (r *Record) EncodeRecord() []byte {
 	res := make([]byte, r.Size())
 	binary.LittleEndian.PutUint32(res[0:4], r.crc)
 	binary.LittleEndian.PutUint64(res[4:12], r.ts)
@@ -63,7 +69,7 @@ func (r *Record) Encode() []byte {
 	return res
 }
 
-func Decode(data []byte) *Record {
+func DecodeRecord(data []byte) *Record {
 	res := &Record{}
 	res.crc = binary.LittleEndian.Uint32(data[0:4])
 	res.ts = binary.LittleEndian.Uint64(data[4:12])
@@ -96,5 +102,5 @@ func ReadRecord(readFile *os.File, offset int64) (*Record, error) {
 		return nil, err
 	}
 
-	return Decode(recordBytes), err
+	return DecodeRecord(recordBytes), err
 }

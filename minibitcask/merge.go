@@ -3,6 +3,7 @@ package minibitcask
 import (
 	"io"
 	"minibitcask/utils"
+	"minibitcask/wal"
 	"os"
 	"time"
 )
@@ -65,7 +66,7 @@ func (m *Merge) Close() {
 
 func (m *Merge) merge() error {
 	// get need merge files
-	fids, err := utils.GetDataFiles(m.db.GetOpt().GetDir(), utils.DATA_FILE_EXT)
+	fids, err := utils.GetDataFiles(m.db.GetOpt().GetDir(), wal.SEGMENT_FILE_EXT)
 	if err != nil {
 		return err
 	}
@@ -80,17 +81,35 @@ func (m *Merge) merge() error {
 		return err
 	}
 
-	// merge every file
-	for _, fid := range fids {
-		err = m.mergeFile(fid)
+	reader, err := m.db.wal.NewWalReader(fids[len(fids) - 1])
+	if err != nil {
+		return err
+	}
+
+	// interate
+	for {
+		data, walPos, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
 		if err != nil {
+			return err
+		}
+
+		// judge data is valid or not
+		record := DecodeRecord(data)
+		if record.GetFlag() == TYPE_RECORD_DELETE {
+			continue
+		}
+
+		if err = m.db.MergeRecord(data, record, walPos); err != nil {
 			return err
 		}
 	}
 
 	// delete merged files
 	for _, fid := range fids {
-		file := utils.GetActiveFilePath(m.db.GetOpt().GetDir(), fid)
+		file := utils.GetSegmentFilePath(m.db.GetOpt().GetDir(), fid, wal.SEGMENT_FILE_EXT)
 		// delete file in filesystem
 		if err = os.Remove(file); err != nil {
 			return err
@@ -100,38 +119,4 @@ func (m *Merge) merge() error {
 	return err
 }
 
-func (m *Merge) mergeFile(fid uint32) error {
-	// foreach every record in file and judge is whether valid, ignore invalid record then write valid record to file and update index
-	path := utils.GetActiveFilePath(m.db.GetOpt().GetDir(), fid)
-
-	var offset int64
-	// Open the file for reading
-	readFile, err := os.OpenFile(path, os.O_RDONLY, 0666)
-	if err != nil {
-		return err
-	}
-
-	for {
-		record, err := ReadRecord(readFile, offset)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		offset += int64(record.Size())
-
-		// ignore deleted records
-		if record.GetFlag() == TYPE_RECORD_DELETE {
-			continue
-		}
-
-		if err = m.db.MergeRecord(record); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
 

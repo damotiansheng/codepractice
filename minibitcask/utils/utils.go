@@ -9,12 +9,11 @@ import (
 )
 
 const (
-	DATA_FILE_EXT = ".dat"
 	HINT_FILE_EXT = ".hint"
 )
 
-func GetActiveFilePath(dir string, fid uint32) string {
-	return dir + "/" + strconv.Itoa(int(fid)) + DATA_FILE_EXT
+func GetSegmentFilePath(dir string, fid uint32, fileExt string) string {
+	return dir + "/" + strconv.Itoa(int(fid)) + fileExt
 }
 
 func GetHintFilePath(dir string, fid uint32) string {

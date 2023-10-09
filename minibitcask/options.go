@@ -5,7 +5,7 @@ import "time"
 type Options struct {
 	dir	string
 	syncEnable bool
-	maxActiveFileSize uint32
+	maxActiveFileSize int64
 	mergeInteval time.Duration
 }
 
@@ -37,7 +37,7 @@ func WithMergeInteval(mergeInteval time.Duration) Option {
 	}
 }
 
-func WithMaxActiveFileSize(maxActiveFileSize uint32) Option {
+func WithMaxActiveFileSize(maxActiveFileSize int64) Option {
 	return func(options *Options) {
 		options.maxActiveFileSize = maxActiveFileSize
 	}
@@ -55,7 +55,7 @@ func (opt *Options) GetSyncEnable() bool {
     return opt.syncEnable
 }
 
-func (opt *Options) GetMaxActiveFileSize() uint32 {
+func (opt *Options) GetMaxActiveFileSize() int64 {
     return opt.maxActiveFileSize
 }
 
