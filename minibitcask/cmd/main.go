@@ -52,4 +52,9 @@ func main() {
 			panic(err)
 		}
 	}
+
+	// merge data
+	if err := db.Merge(); err != nil {
+		panic(err)
+	}
 }
