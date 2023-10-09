@@ -108,6 +108,7 @@ func (db *DB) parseDataFile(fid uint32) (fileLen int64, err error) {
 		// ignore deleted records
 		if record.GetFlag() == TYPE_RECORD_DELETE {
 			offset += int64(recordLen)
+			delete(db.data, string(record.key))
 			continue
 		}
 
@@ -140,8 +141,8 @@ func (db *DB) GetSize() int {
 	return len(db.data)
 }
 
-func (db *DB) Merge() {
-	db.merge.beginMerge()
+func (db *DB) Merge() error {
+	return db.merge.beginMerge()
 }
 
 func (db *DB) Get(key []byte) ([]byte, error) {

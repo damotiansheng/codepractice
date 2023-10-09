@@ -64,7 +64,7 @@ func TestDB_Delete(t *testing.T) {
 	for i  := 0; i < n / 2; i++ {
 		key := []byte(fmt.Sprintf("test%d", i))
 		_, err := db.Get(key)
-		require.Equal(t, err,  ErrKeyNotFound)
+		require.Equal(t, ErrKeyNotFound, err)
 	}
 
 	// Close the DB.
@@ -74,6 +74,13 @@ func TestDB_Delete(t *testing.T) {
 	// Re-open the DB.
 	db, err = Open(&Options{}, WithDir("./test-delete"), WithSyncEnable(false), WithMaxActiveFileSize(1024 * 1024 * 1))
 	require.NoError(t, err)
+
+	// Check that the deleted keys are no longer present.
+	for i  := 0; i < n / 2; i++ {
+		key := []byte(fmt.Sprintf("test%d", i))
+		_, err := db.Get(key)
+		require.Equal(t, ErrKeyNotFound, err)
+	}
 
 	// Check that the remaining keys are present.
 	for i  := n / 2; i < n; i++ {

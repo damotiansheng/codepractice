@@ -11,7 +11,7 @@ type Merge struct {
 	interval time.Duration
 	beginCh  chan struct{}
 	closeCh  chan struct{}
-	endCh    chan struct{}
+	endCh    chan error
 	db       *DB
 }
 
@@ -21,7 +21,7 @@ func NewMerge(db *DB) *Merge {
 		db:       db,
 		closeCh: make(chan struct{}),
 		beginCh: make(chan struct{}),
-		endCh: make(chan struct{}),
+		endCh: make(chan error),
 	}
 }
 
@@ -37,8 +37,7 @@ func (m *Merge) Start() {
 			case <-tick.C:
 				m.merge()
 			case <-m.beginCh:
-				m.merge()
-				m.endCh <- struct{}{}
+				m.endCh <- m.merge()
 				tick.Reset(m.interval)
 			case <-m.closeCh:
 				tick.Stop()
@@ -52,9 +51,9 @@ func (m *Merge) Stop() {
 	m.closeCh <- struct{}{}
 }
 
-func (m *Merge) beginMerge() {
+func (m *Merge) beginMerge() error {
 	m.beginCh <- struct{}{}
-	<-m.endCh
+	return <-m.endCh
 }
 
 func (m *Merge) Close() {
